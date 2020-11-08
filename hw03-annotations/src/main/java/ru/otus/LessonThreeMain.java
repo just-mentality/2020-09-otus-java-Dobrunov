@@ -7,7 +7,7 @@ import ru.otus.executor.CustomTestExecutor;
 
 import java.util.List;
 
-public class LessonSixMain {
+public class LessonThreeMain {
 
   public static void main(String... args) {
       new CustomTestExecutor().execute(List.of("ru.otus.tests.TestedClassOneTest", "ru.otus.tests.TestedClassTwoTest"));

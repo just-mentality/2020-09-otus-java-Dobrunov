@@ -27,11 +27,11 @@ tasks.withType(JavaCompile) {
 }
 
 shadowJar {
-    archiveBaseName.set('gradleCollection')
+    archiveBaseName.set('gradleAnnotations')
     archiveVersion.set('0.1')
     archiveClassifier.set('')
     manifest {
-        attributes 'Main-Class': 'ru.otus.LessonSixMain'
+        attributes 'Main-Class': 'ru.otus.LessonThreeMain'
     }
 }
 
