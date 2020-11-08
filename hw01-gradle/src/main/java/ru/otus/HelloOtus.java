@@ -6,7 +6,7 @@ package ru.otus;
 import com.google.common.collect.ImmutableSet;
 
 public class HelloOtus {
-  public static void main(String... args) {
-    System.out.println(ImmutableSet.of("Red", "Green", "Blue", "Yellow", "Green").toString());
-  }
+    public static void main(String... args) {
+        System.out.println(ImmutableSet.of("Red", "Green", "Blue", "Yellow", "Green").toString());
+    }
 }
