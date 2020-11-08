@@ -1,0 +1,38 @@
+plugins {
+    // Apply the java plugin to add support for Java
+    id 'java'
+    id 'com.github.johnrengelman.shadow'
+}
+
+sourceCompatibility = JavaVersion.VERSION_15
+targetCompatibility = JavaVersion.VERSION_15
+
+dependencies {
+    // This dependency is used by the application.
+    compileOnly('org.projectlombok:lombok')
+    annotationProcessor('org.projectlombok:lombok')
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.with {
+        encoding = 'UTF-8'
+    }
+}
+
+shadowJar {
+    archiveBaseName.set('gradleCollection')
+    archiveVersion.set('0.1')
+    archiveClassifier.set('')
+    manifest {
+        attributes 'Main-Class': 'ru.otus.LessonSixMain'
+    }
+}
+
+tasks.build.dependsOn tasks.shadowJar

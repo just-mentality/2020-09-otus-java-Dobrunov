@@ -2,3 +2,4 @@
 
 rootProject.name = '2020-09-otus-java-Dobrunov'
 include 'hw01-gradle'
+include 'hw03-annotations'
