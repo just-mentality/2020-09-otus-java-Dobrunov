@@ -2,7 +2,6 @@ package ru.otus.executor;
 
 import ru.otus.domain.TestClassInstance;
 import ru.otus.domain.TestExecutionInfo;
-import ru.otus.domain.TestMethod;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -12,7 +11,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
-public class CustomTestExecutor extends ITestExecutor<Collection<String>> {
+public class TestExecutorImpl extends TestExecutor<Collection<String>> {
 
     protected Collection<String> errors = new LinkedList<>();
 
@@ -26,8 +25,7 @@ public class CustomTestExecutor extends ITestExecutor<Collection<String>> {
 
         for (String className : classes) {
             if (!className.endsWith("Test")) {
-                errors.add(String.format("Test class name must ends with postfix <%s>, but <%s> doesn't!", "Test",
-                        className));
+                saveError(String.format("Test class name must ends with postfix <%s>, but <%s> doesn't!", "Test", className));
                 continue;
             }
             var testInstance = groupClassMethods(className);
@@ -58,7 +56,7 @@ public class CustomTestExecutor extends ITestExecutor<Collection<String>> {
         final Optional<Class<?>> clazz = loadClass(testClassName);
 
         if (!clazz.isPresent()) {
-            errors.add(String.format("Class %s is not found ! Something went wrong...", testClassName));
+            saveError(String.format("Class %s is not found ! Something went wrong...", testClassName));
             return Optional.empty();
         }
 
@@ -80,79 +78,86 @@ public class CustomTestExecutor extends ITestExecutor<Collection<String>> {
     }
 
     private String getErrorFromException(final Exception exception) {
-        final String errrorMessage;
         final var throwable = exception.getCause();
         if (throwable != null) {
-            errrorMessage = throwable.getMessage();
-        } else {
-            errrorMessage = exception.getMessage();
+            return throwable.getMessage();
         }
-        return errrorMessage;
+        return exception.getMessage();
     }
 
-    private void increaseErrorsCounter(final Exception exception) {
-        final String exceptionMessage = getErrorFromException(exception);
-        errors.add(exceptionMessage);
-        System.out.println(exceptionMessage);
-        failedTestsCount++;
+    private <T> void saveError(final T error) {
+        if (error instanceof String) {
+            errors.add((String) error);
+        } else {
+            errors.add(getErrorFromException((Exception) error));
+        }
     }
 
-    private void increaseErrorsCounter(final String message) {
-        errors.add(message);
-        System.out.println(message);
-        failedTestsCount++;
+    private <T> void saveAndPrintError(final T error) {
+        if (error == null) {
+            return;
+        } else if (error instanceof String) {
+            errors.add((String) error);
+            System.out.println(error);
+        } else {
+            saveAndPrintError(getErrorFromException((Exception) error));
+        }
+    }
+
+    private <T> void increaseErrors(final T error, final boolean shouldIncreaseErrorCounter) {
+        saveAndPrintError(error);
+
+        if (shouldIncreaseErrorCounter) {
+            failedTestsCount++;
+        }
+    }
+
+    private Object initiateObject(final TestClassInstance testClassInstance) throws Exception {
+        final Object testObjectInstance;
+        try {
+            testObjectInstance = testClassInstance.getClazz().getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new Exception(e);
+        }
+        return testObjectInstance;
     }
 
     private void runTests(final Collection<TestClassInstance> testClassInstances) {
+        int testsCount = 0;
+        boolean shouldIncreaseErrorCounter;
         System.out.println("Testing is started.");
 
         for (final var testClassInstance : testClassInstances) {
-            final Object testObj;
             try {
-                testObj = testClassInstance.getClazz().getDeclaredConstructor().newInstance();
+                final var testMethods = testClassInstance.getTestMethods();
+                testsCount = testMethods.size();
+                totalTestsCount += testsCount;
+                final var initiatedTestObject = initiateObject(testClassInstance);
+
+                for (var method : testMethods) {
+                    shouldIncreaseErrorCounter = true;
+                    System.out.println(TEST_INFO_DELIMETER);
+                    System.out.println(" --> " + initiatedTestObject);
+
+                    final var beforeResult = executeMethodsOnObject(initiatedTestObject, testClassInstance.getBeforeMethods(), shouldIncreaseErrorCounter);
+                    shouldIncreaseErrorCounter = beforeResult.isSuccessfullTest();
+                    method.setTestResult(beforeResult);
+
+                    if (beforeResult.isSuccessfullTest()) {
+                        final var testResult = executeMethodsOnObject(initiatedTestObject, List.of(method.getMethod()), shouldIncreaseErrorCounter);
+                        if (testResult.isSuccessfullTest()) {
+                            successfullTestsCount += 1;
+                        } else {
+                            shouldIncreaseErrorCounter = false;
+                        }
+                        method.setTestResult(testResult);
+                    }
+                    executeMethodsOnObject(initiatedTestObject, testClassInstance.getAfterMethods(), shouldIncreaseErrorCounter);
+                }
             } catch (Exception e) {
-                continue;
+                failedTestsCount += testsCount;
+                saveAndPrintError(e);
             }
-            final List<TestMethod> testMethods = testClassInstance.getTestMethods();
-
-            for (TestMethod method : testMethods) {
-                System.out.println(TEST_INFO_DELIMETER);
-                System.out.println(" --> " + testObj.getClass());
-                totalTestsCount += 1;
-                // try to run before methods
-                try {
-                    executeMethodsOnObject(testObj, testClassInstance.getBeforeMethods());
-                } catch (Exception e) {
-                    final String message = getErrorFromException(e);
-                    increaseErrorsCounter(message);
-                    method.setTestResult(new TestExecutionInfo(false, message));
-                    continue;
-                    // other before each will not called!
-                }
-                // try to run main tests
-                try {
-                    Method runningMethod = method.getMethod();
-                    runningMethod.setAccessible(true); // like junit5
-                    System.out.print(String.format("Running method [%s] -> ", runningMethod.getName()));
-                    runningMethod.invoke(testObj);
-                    method.setTestResult(new TestExecutionInfo(true, null));
-                    successfullTestsCount += 1;
-                } catch (Exception e) {
-                    final String errorOccurred = getErrorFromException(e);
-                    method.setTestResult(new TestExecutionInfo(false, errorOccurred));
-                    increaseErrorsCounter(errorOccurred);
-                    continue;
-                }
-                // try to run after methods
-                try {
-                    executeMethodsOnObject(testObj, testClassInstance.getAfterMethods());
-                } catch (Exception e) {
-                    increaseErrorsCounter(e);
-                    continue;
-                    // other after each will not called!
-                }
-            }
-
         }
         System.out.println(TEST_INFO_DELIMETER);
         System.out.println("Testing has been finished!");
@@ -164,12 +169,21 @@ public class CustomTestExecutor extends ITestExecutor<Collection<String>> {
         System.out.println(INNER_DELIMETER);
     }
 
-    private void executeMethodsOnObject(final Object testObj, final List<Method> methods) throws Exception {
+    private TestExecutionInfo executeMethodsOnObject(final Object testObj,
+                                                     final List<Method> methods,
+                                                     final boolean shouldIncreaseErrorCounter) {
         for (Method method : methods) {
             System.out.print(String.format("Running method [%s] -> ", method.getName()));
-            method.setAccessible(true); // like junit5
-            method.invoke(testObj);
+            method.setAccessible(true); // like junit5 (acess to not public methods)
+            try {
+                method.invoke(testObj);
+            } catch (Exception e) {
+                final String errorMessage = getErrorFromException(e);
+                increaseErrors(errorMessage, shouldIncreaseErrorCounter);
+                return TestExecutionInfo.from(errorMessage);
+            }
         }
+        return TestExecutionInfo.from();
     }
 
     private void showTestsSummary(List<TestClassInstance> testClassInstances) {
@@ -194,7 +208,7 @@ public class CustomTestExecutor extends ITestExecutor<Collection<String>> {
             t.getTestMethods().forEach(
                     test -> test.getExecs().forEach(
                             exec -> System.out.println(String.format("  -> Test %s was %s",
-                                    test.getMethod().getName(), (exec.isSuccessfull() ? "successfull" : "with errors -> " + exec.getErrorMessage())))
+                                    test.getMethod().getName(), (exec.isSuccessfullTest() ? "successfull" : "with errors -> " + exec.getErrorMessage())))
                     )
             );
         });

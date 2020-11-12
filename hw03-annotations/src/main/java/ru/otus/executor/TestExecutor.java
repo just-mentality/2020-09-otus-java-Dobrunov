@@ -2,7 +2,7 @@ package ru.otus.executor;
 
 import java.util.Optional;
 
-public abstract class ITestExecutor<T> {
+public abstract class TestExecutor<T> {
 
     protected int totalTestsCount = 0;
     protected int successfullTestsCount = 0;

@@ -3,13 +3,13 @@
  */
 package ru.otus;
 
-import ru.otus.executor.CustomTestExecutor;
+import ru.otus.executor.TestExecutorImpl;
 
 import java.util.List;
 
 public class LessonThreeMain {
 
   public static void main(String... args) {
-      new CustomTestExecutor().execute(List.of("ru.otus.tests.TestedClassOneTest", "ru.otus.tests.TestedClassTwoTest"));
+      new TestExecutorImpl().execute(List.of("ru.otus.tests.TestedClassOneTest", "ru.otus.tests.TestedClassTwoTest"));
   }
 }
