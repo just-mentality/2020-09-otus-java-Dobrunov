@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -19,7 +20,7 @@ import java.util.stream.IntStream;
 public class TestLoggingInvocationHandler implements InvocationHandler {
 
     private final TestLogging testLogging;
-    private List<Method> annotatedMethods;
+    private Set<String> annotatedMethods;
 
     private static final String DELIMITER = " | ";
 
@@ -36,7 +37,7 @@ public class TestLoggingInvocationHandler implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        if (annotatedMethods.stream().anyMatch(m -> testMethodsOnEquality(m, method))) {
+        if (annotatedMethods.stream().anyMatch(m -> m.equals(getMethodDeclaration(method)))) {
             log.info("Run method: {} {} {} with parameters -> {}",
                     method.getReturnType(), method.getName(), method.getParameterTypes(), getParamsAsString(args));
         }
@@ -52,6 +53,13 @@ public class TestLoggingInvocationHandler implements InvocationHandler {
         return stringBuilder.toString();
     }
 
+    private String getMethodDeclaration(final Method method) {
+        return String.format("%s %s %s",
+                        method.getReturnType(),
+                        method.getName(),
+                        Arrays.toString(method.getParameterTypes()));
+    }
+
     private boolean testMethodsOnEquality(final Method first, final Method second) {
         // we should not rely on method's class and method's argument list with name of args - only types
         return first.getName().equals(second.getName())
@@ -62,14 +70,10 @@ public class TestLoggingInvocationHandler implements InvocationHandler {
     private void initProxyMethods() {
         val methods = TestLoggingImpl.class.getMethods();
         annotatedMethods = Arrays.stream(methods)
-                .filter(method -> Arrays.stream(method.getDeclaredAnnotations())
-                        .anyMatch(TestLoggingInvocationHandler::testAnnotation))
-                .collect(Collectors.toList());
+                .filter(method -> method.isAnnotationPresent(Log.class))
+                .map(this::getMethodDeclaration)
+                .collect(Collectors.toSet());
 
         log.debug("Debug info: {}", annotatedMethods);
-    }
-
-    private static boolean testAnnotation(final Annotation annotation) {
-        return annotation instanceof Log;
     }
 }
